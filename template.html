@@ -518,9 +518,11 @@ const qEl=document.getElementById('q');
 qEl.addEventListener('input',()=>{query=qEl.value;renderGrid();});
 qEl.addEventListener('keydown',e=>{if(e.key==='Enter'){const m=scopeCouncils().find(m=>m.n.toLowerCase().includes(query.trim().toLowerCase()));if(m)select(m.id,true);}});
 
-// Open the council in the link, else a busy metro as an example
+// Open the council in the link, else City of Johannesburg, with its province in view
+const JHB=3003;
 const hm=/^#m(\d+)$/.exec(location.hash);
-selected=hm&&byId[hm[1]]?+hm[1]:(byId[1001]?1001:councils[0].id);
+selected=hm&&byId[hm[1]]?+hm[1]:(byId[JHB]?JHB:councils[0].id);
+scope=String(byId[selected].prov.id);
 renderAll();
 })();
 </script>
