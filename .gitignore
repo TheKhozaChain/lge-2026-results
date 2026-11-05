@@ -1,0 +1,5 @@
+.claude/
+site/
+lge-results-explorer.html
+data-version.json
+__pycache__/
