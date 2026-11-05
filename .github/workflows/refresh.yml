@@ -23,6 +23,8 @@ jobs:
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      - name: Install image library
+        run: pip install --quiet pillow
       - name: Pull latest IEC results and build the page
         run: |
           mkdir -p site
