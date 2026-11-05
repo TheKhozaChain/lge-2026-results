@@ -81,7 +81,14 @@ header.top{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:end;justify-con
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .down{color:#ff7b6b}}
 .legend{display:flex;gap:16px;flex-wrap:wrap;font-size:.8rem;color:var(--muted);margin-top:10px}
 .legend span{display:inline-flex;align-items:center;gap:6px}
-.lg-ghost{width:2px;height:14px;background:var(--ghost);opacity:.55}
+.lg-ghost{flex:none;width:2px;height:14px;background:var(--ghost);opacity:.55}
+.barkey{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:.8rem;color:var(--muted);margin-bottom:4px}
+.barkey span{display:inline-flex;align-items:center;gap:6px}
+.barkey .kb{flex:none;width:18px;height:10px;border-radius:2px;background:var(--muted);opacity:.7}
+.prow.first{padding-top:20px}
+.prow{cursor:pointer}
+.ghost-lbl{position:absolute;bottom:100%;transform:translateX(calc(-50% + 1px));margin-bottom:3px;font-size:.68rem;font-weight:700;color:var(--muted);white-space:nowrap;opacity:1}
+.rownote{font-size:.85rem;background:var(--bg);border-radius:6px;padding:6px 10px;margin:2px 0 6px}
 
 /* Council grid */
 .filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
@@ -353,29 +360,77 @@ function renderStandings(){
   const max=Math.max(1,...list.map(r=>metric==='pct'?Math.max(r.pct,(h[abbr(r.id)]||{})[2021]||0):r[metric]));
   const box=document.getElementById('standings');box.replaceChildren();
   if(!list.length){box.appendChild(el('p','empty','Nothing to show yet for this measure.'));}
+  if(metric==='pct'&&list.length)box.appendChild(barKey());
+  let labelled=false;
   list.forEach(r=>{
+    if(metric==='pct'){
+      const old=(h[abbr(r.id)]||{})[2021];
+      box.appendChild(voteRow(r.id,r.pct,old,max,!labelled&&old!=null));
+      if(old!=null)labelled=true;
+      return;
+    }
     const row=el('div','prow');
     const nm=el('div','pname');const d=el('i','dot');d.style.background=color(r.id);nm.append(d,el('span',null,abbr(r.id)));nm.title=pname(r.id);
     const tr=el('div','track');const bar=el('i');bar.style.background=color(r.id);
     const v=r[metric];bar.style.width=(v/max*100)+'%';tr.appendChild(bar);
-    const val=el('div','pval');
-    if(metric==='pct'){
-      const old=(h[abbr(r.id)]||{})[2021];
-      if(old!=null){const g=el('span','ghost');g.style.left=`calc(${old/max*100}% - 1px)`;tr.appendChild(g);}
-      val.append(el('div',null,v+'%'));
-      if(old!=null){const dd=Math.round((v-old)*10)/10;val.append(el('div','delta '+(dd>=0?'up':'down'),(dd>=0?'▲ ':'▼ ')+Math.abs(dd)+' pts'));}
-      else if(!['OTHER','IND'].includes(abbr(r.id)))val.append(el('div','delta muted','new'));
-    }else val.append(el('div',null,fmt(v)));
-    tr.setAttribute('role','img');tr.setAttribute('aria-label',`${pname(r.id)}: ${val.textContent}`);
+    const val=el('div','pval');val.append(el('div',null,fmt(v)));
+    const say=`${abbr(r.id)}: ${fmt(v)} ${metric==='seats'?'seats won so far':'councils where it is ahead'}`;
+    tr.setAttribute('role','img');tr.setAttribute('aria-label',say);hoverTip(row,say);
     row.append(nm,tr,val);box.appendChild(row);
   });
   const lg=document.getElementById('st-legend');lg.replaceChildren();
-  if(metric==='pct'){const s=el('span');s.append(el('i','lg-ghost'),document.createTextNode(' 2021 result'));lg.append(s,el('span',null,'Small parties under 0.3% hidden'));}
+  if(metric==='pct')lg.append(el('span',null,'Point at or tap a bar for the details. Small parties under 0.3% are hidden.'));
   if(metric==='seats')lg.append(el('span',null,'Mostly ward seats. Proportional seats are added when each council finishes counting.'));
   if(metric==='cw')lg.append(el('span',null,'Councils where the party is currently ahead (on votes while counting, on seats once final).'));
 }
 
 const tip=document.getElementById('tip');
+function hoverTip(node,text){
+  node.onmouseenter=()=>{tip.textContent=text;tip.hidden=false;};
+  node.onmousemove=e=>{tip.style.left=Math.min(e.clientX+12,innerWidth-250)+'px';tip.style.top=(e.clientY+14)+'px';};
+  node.onmouseleave=()=>{tip.hidden=true;};
+}
+
+// Key shown above every vote-share chart: what the bar and the line mean
+function barKey(){
+  const k=el('div','barkey');
+  const a=el('span');const sw=el('i','kb');a.append(sw,document.createTextNode('Bar: share of the vote counted so far in 2026'));
+  const b=el('span');b.append(el('i','lg-ghost'),document.createTextNode('Line: the party’s result in 2021'));
+  k.append(a,b);return k;
+}
+
+// One vote-share row: bar for 2026 so far, line for 2021, change in points, and a plain sentence on hover/tap
+function voteRow(id,now,old,max,labelLine){
+  const row=el('div','prow'+(labelLine?' first':''));
+  const nm=el('div','pname');const d=el('i','dot');d.style.background=color(id);nm.append(d,el('span',null,abbr(id)));
+  const tr=el('div','track');const bar=el('i');bar.style.background=color(id);bar.style.width=(now/max*100)+'%';tr.appendChild(bar);
+  if(old!=null){
+    const x=`calc(${old/max*100}% - 1px)`;
+    const g=el('span','ghost');g.style.left=x;tr.appendChild(g);
+    if(labelLine){const l=el('span','ghost-lbl','2021');l.style.left=x;tr.appendChild(l);}
+  }
+  const val=el('div','pval');val.append(el('div',null,now+'%'));
+  const a=abbr(id);let say;
+  if(old!=null){
+    const dd=Math.round((now-old)*10)/10;
+    val.append(el('div','delta '+(dd>=0?'up':'down'),(dd>=0?'▲ ':'▼ ')+Math.abs(dd)+' pts'));
+    say=dd===0?`${a}: ${now}% so far, the same as in 2021.`:`${a}: ${now}% so far, ${dd>0?'up':'down'} from ${old}% in 2021 (${Math.abs(dd)} points ${dd>0?'higher':'lower'}).`;
+  }else if(a==='OTHER'){say=`All smaller parties together: ${now}% so far.`;}
+  else if(a==='IND'){say=`Independent candidates together: ${now}% so far.`;}
+  else{val.append(el('div','delta muted','new'));say=`${a}: ${now}% so far. It did not stand here in 2021.`;}
+  if(a!=='OTHER'&&a!=='IND')say=say.replace(/^[^:]+/,pname(id));
+  tr.setAttribute('role','img');tr.setAttribute('aria-label',say);hoverTip(row,say);
+  row.tabIndex=0;row.onclick=()=>{tip.hidden=true;showNote(row,say);};
+  row.append(nm,tr,val);return row;
+}
+// Tap-friendly note under a row (phones have no hover)
+function showNote(row,text){
+  const next=row.nextElementSibling;
+  document.querySelectorAll('.rownote').forEach(n=>n.remove());
+  if(next&&next.classList.contains('rownote')&&next.textContent===text)return;
+  row.after(el('div','rownote',text));
+}
+
 function renderGrid(){
   ['all','maj','hung','count'].forEach(f=>document.getElementById('f-'+f).setAttribute('aria-pressed',f===filter));
   const box=document.getElementById('grid');box.replaceChildren();
@@ -445,14 +500,12 @@ function renderCase(){
   box.appendChild(el('h3',null,'Vote share'));
   const top=m.p.slice(0,6);const max=Math.max(1,...top.map(p=>Math.max(p[2],(m.h[abbr(p[0])]||{})[2021]||0)));
   const pb=el('div');pb.style.marginTop='6px';
+  pb.appendChild(barKey());
+  let labelled=false;
   top.forEach(p=>{
-    const row=el('div','prow');const nm=el('div','pname');const d=el('i','dot');d.style.background=color(p[0]);nm.append(d,el('span',null,abbr(p[0])));nm.title=pname(p[0]);
-    const tr=el('div','track');const b=el('i');b.style.background=color(p[0]);b.style.width=(p[2]/max*100)+'%';tr.appendChild(b);
     const old=(m.h[abbr(p[0])]||{})[2021];
-    if(old!=null){const g=el('span','ghost');g.style.left=`calc(${old/max*100}% - 1px)`;tr.appendChild(g);}
-    const val=el('div','pval');val.append(el('div',null,p[2]+'%'));
-    if(old!=null){const dd=Math.round((p[2]-old)*10)/10;val.append(el('div','delta '+(dd>=0?'up':'down'),(dd>=0?'▲ ':'▼ ')+Math.abs(dd)+' pts'));}
-    row.append(nm,tr,val);pb.appendChild(row);
+    pb.appendChild(voteRow(p[0],p[2],old,max,!labelled&&old!=null));
+    if(old!=null)labelled=true;
   });
   box.appendChild(pb);
   // seats + coalition builder
