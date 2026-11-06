@@ -553,10 +553,10 @@ function renderCase(){
   else ex=`Counting is complete and no party won the ${need} seats needed for a majority. ${abbr(L[0])} is the largest party with ${L[3]} seats. Expect coalition talks.`;
   const won=m.p.reduce((a,p)=>a+(p[3]||0),0);
   if(st==='count'&&m.g.vd[0]){
-    const lw=L[3]||0;const x=el('div','explain facts3');
+    const pj=(S.rows.find(r=>r.id===L[0])||{s:0}).s;const gap=need-pj;const x=el('div','explain facts3');
     [['Counted',`${pct(m.g.vd[0],m.g.vd[1])}% of voting stations`],
      ['Leading',`${abbr(L[0])}, on ${L[2]}% of the vote`],
-     ['To govern alone',`${need} of ${S.N} seats. ${abbr(L[0])} has ${lw} so far, and ${S.N-won} seats are still to be decided.`]
+     ['To govern alone',`${need} of ${S.N} seats. On the current trend ${abbr(L[0])} would get about ${pj}, ${gap>0?gap+' short':(-gap)+' more than needed'}. ${S.N-won} seats are still to be decided.`]
     ].forEach(([k,v])=>{const d=el('div');d.append(el('b',null,k+': '),document.createTextNode(v));x.appendChild(d);});
     box.appendChild(x);
   } else box.appendChild(el('div','explain',ex));
@@ -593,7 +593,7 @@ function renderCase(){
   seatsEl.setAttribute('aria-label',order.map(r=>`${abbr(r.id)} ${r.s}`).join(', '));
   box.appendChild(seatsEl);
   const sk=el('div','seatkey');
-  if(!S.final){const a=el('span');a.append(el('i','seat open'),document.createTextNode(`White: ${S.N-won} still to be decided`));sk.appendChild(a);}
+  if(!S.final){const a=el('span');a.append(el('i','seat open'),document.createTextNode(`White: ${S.N-won} still to be decided. Half the seats are handed out only when counting ends.`));sk.appendChild(a);}
   const b2=el('span');b2.append(el('i','seat mark'),document.createTextNode(`Ringed: seat ${need}, the majority line`));sk.appendChild(b2);
   box.appendChild(sk);
   if(!S.final){const n=el('p','muted','Test a coalition using projected final seats, which assume the rest of the count follows the trend so far:');n.style.cssText='margin:12px 0 0;font-size:.85rem';box.appendChild(n);}
