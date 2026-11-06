@@ -151,6 +151,9 @@ header.top{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:end;justify-con
 .seats{display:flex;flex-wrap:wrap;gap:3px;margin:10px 0 4px;position:relative}
 .seat{width:11px;height:11px;border-radius:50%;background:var(--soft)}
 .seat.mark{box-shadow:0 0 0 2px var(--ink)}
+.seat.open{background:#fff;outline:1px solid var(--line);outline-offset:-1px}
+.facts3{display:grid;gap:4px}.facts3 b{font-weight:700}
+.seatkey{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:.8rem;color:var(--muted);margin-top:2px}.seatkey .seat{display:inline-block;vertical-align:-1px;margin-right:5px}
 .coal{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .coal button{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface);border-radius:99px;padding:4px 10px;font-size:.85rem;font-weight:600}
 .coal button[aria-pressed="true"]{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
@@ -548,7 +551,15 @@ function renderCase(){
   else if(st==='count')ex=`${pct(m.g.vd[0],m.g.vd[1])}% of voting stations have reported. ${abbr(L[0])} is ahead on ${L[2]}% of the vote. ${need} of ${S.N} seats are needed to govern alone.`;
   else if(st==='maj')ex=`Counting is complete. ${abbr(L[0])} won ${L[3]} of ${S.N} seats, more than the ${need} needed, so it can elect the mayor on its own.`;
   else ex=`Counting is complete and no party won the ${need} seats needed for a majority. ${abbr(L[0])} is the largest party with ${L[3]} seats. Expect coalition talks.`;
-  box.appendChild(el('div','explain',ex));
+  const won=m.p.reduce((a,p)=>a+(p[3]||0),0);
+  if(st==='count'&&m.g.vd[0]){
+    const lw=L[3]||0;const x=el('div','explain facts3');
+    [['Counted',`${pct(m.g.vd[0],m.g.vd[1])}% of voting stations`],
+     ['Leading',`${abbr(L[0])}, on ${L[2]}% of the vote`],
+     ['To govern alone',`${need} of ${S.N} seats. ${abbr(L[0])} has ${lw} so far, and ${S.N-won} seats are still to be decided.`]
+    ].forEach(([k,v])=>{const d=el('div');d.append(el('b',null,k+': '),document.createTextNode(v));x.appendChild(d);});
+    box.appendChild(x);
+  } else box.appendChild(el('div','explain',ex));
   // Share this council: link opens the page on it, text says where things stand
   let shareTxt;
   if(!m.g.vd[0])shareTxt=`${short(m.n)}: counting has not started yet.`;
@@ -573,15 +584,19 @@ function renderCase(){
   });
   box.appendChild(pb);
   // seats + coalition builder
-  const sh=el('h3',null,S.final?`Council seats (${S.N})`:`Projected seats (${S.N})`);sh.style.marginTop='16px';box.appendChild(sh);
-  box.appendChild(el('p','muted',S.final?'Official allocation. Pick parties to test a coalition.':'If the rest of the count follows the trend so far. Pick parties to test a coalition.')).style.cssText='margin:2px 0 0;font-size:.85rem';
+  const sh=el('h3',null,S.final?`Council seats (${S.N})`:`Seats won so far: ${won} of ${S.N}`);sh.style.marginTop='16px';box.appendChild(sh);
   const seatsEl=el('div','seats');seatsEl.setAttribute('role','img');
-  const order=[...S.rows].sort((a,b)=>(coal.has(b.id)-coal.has(a.id))||b.s-a.s);
+  const shown=S.final?S.rows:m.p.map(p=>({id:p[0],s:p[3]||0})).filter(r=>r.s>0);
+  const order=[...shown].sort((a,b)=>(coal.has(b.id)-coal.has(a.id))||b.s-a.s);
   let k=0;order.forEach(r=>{for(let i=0;i<r.s;i++){const s=el('i','seat'+(k===need-1?' mark':''));s.style.background=coal.size&&!coal.has(r.id)?'var(--soft)':color(r.id);s.title=abbr(r.id);seatsEl.appendChild(s);k++;}});
-  for(;k<S.N;k++)seatsEl.appendChild(el('i','seat'+(k===need-1?' mark':'')));
+  for(;k<S.N;k++)seatsEl.appendChild(el('i','seat'+(S.final?'':' open')+(k===need-1?' mark':'')));
   seatsEl.setAttribute('aria-label',order.map(r=>`${abbr(r.id)} ${r.s}`).join(', '));
   box.appendChild(seatsEl);
-  box.appendChild(el('div','muted',`Ringed seat marks the ${need}-seat majority line.`)).style.fontSize='.8rem';
+  const sk=el('div','seatkey');
+  if(!S.final){const a=el('span');a.append(el('i','seat open'),document.createTextNode(`White: ${S.N-won} still to be decided`));sk.appendChild(a);}
+  const b2=el('span');b2.append(el('i','seat mark'),document.createTextNode(`Ringed: seat ${need}, the majority line`));sk.appendChild(b2);
+  box.appendChild(sk);
+  if(!S.final){const n=el('p','muted','Test a coalition using projected final seats, which assume the rest of the count follows the trend so far:');n.style.cssText='margin:12px 0 0;font-size:.85rem';box.appendChild(n);}
   const cb=el('div','coal');
   S.rows.filter(r=>abbr(r.id)!=='OTHER').slice(0,10).forEach(r=>{
     const b=el('button');b.setAttribute('aria-pressed',coal.has(r.id));const d=el('i','dot');d.style.background=color(r.id);
