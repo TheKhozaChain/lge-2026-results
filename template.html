@@ -165,6 +165,16 @@ header.top{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:end;justify-con
 .empty{color:var(--muted);font-size:.95rem}
 
 /* Watch lists + explainer */
+.metros{margin-top:20px}
+.mt-wrap{overflow-x:auto;margin:0 -4px}
+.mt{width:100%;border-collapse:collapse;font-size:.9rem}
+.mt th{text-align:left;font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+.mt td{padding:8px;border-bottom:1px solid var(--soft);white-space:nowrap}
+.mt tbody tr{cursor:pointer}.mt tbody tr:hover td{background:var(--bg)}
+.mt .nm{font-weight:700}.mt .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px}
+.mt .need{color:var(--muted);font-size:.82rem}
+.mt .sub{font-weight:400;font-size:.78rem;color:var(--muted);margin-top:2px}.mt .show-s{display:none}
+@media (max-width:640px){.mt .hide-s{display:none}.mt .show-s{display:block}.mt td,.mt th{padding:8px 5px}.mt td.nm{white-space:normal}}
 .lists{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;margin-top:20px}
 .li{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--soft);width:100%;background:none;border-left:0;border-right:0;border-top:0;text-align:left}
 .li:hover .li-name{color:var(--accent)}
@@ -217,6 +227,14 @@ footer{margin-top:28px;font-size:.85rem;color:var(--muted);max-width:80ch}
     </div>
     <div class="steps" id="steps"></div>
     <p class="summary" id="summary"></p>
+  </section>
+
+  <section class="panel metros" aria-labelledby="mt-title">
+    <div class="panel-head"><h2 id="mt-title">The 8 metros</h2><span class="muted" style="font-size:.85rem">Tap a metro for the full picture</span></div>
+    <div class="mt-wrap"><table class="mt num">
+      <thead><tr><th>Metro</th><th class="hide-s">Counted</th><th>Leading</th><th class="hide-s">vs 2021</th><th class="hide-s">Leader's seats</th><th>Outlook</th></tr></thead>
+      <tbody id="metros"></tbody></table></div>
+    <p class="muted" style="font-size:.8rem;margin:8px 0 0">Projected seats assume the uncounted votes look like the counted ones, with a likely range that narrows as counting goes on. Not shown below 30% counted. Unofficial, based on IEC results.</p>
   </section>
 
   <div class="work">
@@ -278,7 +296,7 @@ footer{margin-top:28px;font-size:.85rem;color:var(--muted);max-width:80ch}
     <details><summary>What is a voting district, and why does the percentage counted move in jumps?</summary>
       <p>A voting district is the area served by one voting station. Votes are counted at the station, checked, and captured by the Electoral Commission. Stations report at different times, so the share counted jumps as batches arrive. Rural stations and large urban ones often report later.</p></details>
     <details><summary>How are the projected seats in the coalition builder worked out?</summary>
-      <p>For councils still counting, each party's projected seats come from its current vote share applied to the council's total seats. This is a rough guide, not a forecast: it assumes the uncounted votes look like the counted ones. Once a council finishes, the builder uses the official seat allocation.</p></details>
+      <p>For councils still counting, each party's projected seats come from its current vote share applied to the council's total seats. This is a rough guide, not a forecast: it assumes the uncounted votes look like the counted ones. The likely range allows the leader's share to move by up to 8 points times the share of stations still uncounted (about 4 points at half counted, none when complete), because stations that report late can vote differently from early ones. Below 30% counted no projection is shown. Once a council finishes, the official seat allocation is used.</p></details>
   </section>
 
   <footer>
@@ -528,12 +546,26 @@ function seatsFor(m){
   const final=status(m)!=='count';
   const N=m.seats||m.g.st[1];
   if(final)return {final,N,rows:m.p.map(p=>({id:p[0],s:p[3],pct:p[2]})).filter(r=>r.s>0)};
-  const tot=m.p.reduce((a,p)=>a+p[2],0)||1;
-  const raw=m.p.map(p=>({id:p[0],pct:p[2],q:p[2]/100*N}));
+  return {final,N,rows:allocate(m.p.map(p=>({id:p[0],pct:p[2]})),N)};
+}
+function allocate(list,N){
+  const raw=list.map(r=>({id:r.id,pct:r.pct,q:r.pct/100*N}));
   raw.forEach(r=>{r.s=Math.floor(r.q);r.rem=r.q-r.s;});
   let left=N-raw.reduce((a,r)=>a+r.s,0);
   [...raw].sort((a,b)=>b.rem-a.rem).forEach(r=>{if(left>0){r.s++;left--;}});
-  return {final,N,rows:raw.filter(r=>r.s>0).sort((a,b)=>b.s-a.s)};
+  return raw.filter(r=>r.s>0).sort((a,b)=>b.s-a.s);
+}
+// Leader's projected seats with a rough range. The range assumes the uncounted votes could
+// move the leader's share by up to 8 points x the share still uncounted (others scale to fit).
+const EARLY=0.3, SWING=8;
+function outlook(m){
+  const S=seatsFor(m),need=Math.floor(S.N/2)+1,L=m.p[0],f=m.g.vd[1]?m.g.vd[0]/m.g.vd[1]:0;
+  if(S.final||!L)return {final:true,S,need};
+  if(f<EARLY)return {early:true,S,need,f};
+  const at=d=>{const lp=Math.min(100,Math.max(0,L[2]+d)),k=(100-lp)/((100-L[2])||1);
+    return (allocate(m.p.map((p,i)=>({id:p[0],pct:i?p[2]*k:lp})),S.N).find(r=>r.id===L[0])||{s:0}).s;};
+  const dv=SWING*(1-f),mid=at(0),lo=at(-dv),hi=at(dv);
+  return {S,need,f,mid,lo,hi,call:lo>=need?'maj':hi<need?'short':'close'};
 }
 
 function renderCase(){
@@ -553,10 +585,12 @@ function renderCase(){
   else ex=`Counting is complete and no party won the ${need} seats needed for a majority. ${abbr(L[0])} is the largest party with ${L[3]} seats. Expect coalition talks.`;
   const won=m.p.reduce((a,p)=>a+(p[3]||0),0);
   if(st==='count'&&m.g.vd[0]){
-    const pj=(S.rows.find(r=>r.id===L[0])||{s:0}).s;const gap=need-pj;const x=el('div','explain facts3');
+    const o=outlook(m);const x=el('div','explain facts3');
+    const proj=o.early?`Too early to project: under ${EARLY*100}% counted.`:
+      `On the current trend ${abbr(L[0])} would get about ${o.mid} (likely ${o.lo}–${o.hi}): ${o.call==='maj'?'a majority looks likely':o.call==='short'?'short of a majority':'too close to call'}.`;
     [['Counted',`${pct(m.g.vd[0],m.g.vd[1])}% of voting stations`],
      ['Leading',`${abbr(L[0])}, on ${L[2]}% of the vote`],
-     ['To govern alone',`${need} of ${S.N} seats. On the current trend ${abbr(L[0])} would get about ${pj}, ${gap>0?gap+' short':(-gap)+' more than needed'}. ${S.N-won} seats are still to be decided.`]
+     ['To govern alone',`${need} of ${S.N} seats. ${proj} ${S.N-won} seats are still to be decided.`]
     ].forEach(([k,v])=>{const d=el('div');d.append(el('b',null,k+': '),document.createTextNode(v));x.appendChild(d);});
     box.appendChild(x);
   } else box.appendChild(el('div','explain',ex));
@@ -639,9 +673,42 @@ function renderLists(){
   fill('swing',sw,it=>`${it.party} ${it.d>0?'+':''}${it.d} pts`);
 }
 
+const METROS=[3003,3004,3002,9006,4005,1001,1117,2207];
+function renderMetros(){
+  const tb=document.getElementById('metros');tb.replaceChildren();
+  METROS.map(id=>byId[id]).filter(Boolean).forEach(m=>{
+    const tr=el('tr'),L=m.p[0],o=outlook(m),st=status(m);
+    const td=(c,t)=>{const d=el('td',c,t);tr.appendChild(d);return d;};
+    const nm=td('nm',short(m.n));
+    td('hide-s',m.g.vd[0]?pct(m.g.vd[0],m.g.vd[1])+'%':'—');
+    const ld=td();if(L&&m.g.vd[0]){const d=el('i','dot');d.style.background=color(L[0]);ld.append(d,document.createTextNode(`${abbr(L[0])} ${L[2]}%`));}else ld.textContent='—';
+    const old=L?(m.h[abbr(L[0])]||{})[2021]:null;
+    if(L&&m.g.vd[0]&&old!=null){const dd=Math.round((L[2]-old)*10)/10;td('hide-s '+(dd>=0?'up':'down'),`${dd>=0?'▲':'▼'} ${Math.abs(dd)} pts`);}else td('hide-s','—');
+    const sc=td('hide-s');
+    if(!m.g.vd[0])sc.textContent='—';
+    else if(o.final){sc.textContent=`${L[3]} `;sc.appendChild(el('span','need',`of ${o.S.N} (need ${o.need})`));}
+    else if(o.early){sc.textContent='Too early ';sc.appendChild(el('span','need',`(need ${o.need})`));}
+    else{sc.textContent=`~${o.mid} (${o.lo}–${o.hi}) `;sc.appendChild(el('span','need',`need ${o.need}`));}
+    if(m.g.vd[0])nm.appendChild(el('div','sub show-s',`${pct(m.g.vd[0],m.g.vd[1])}% counted${o.final?'':o.early?'':` · ~${o.mid} seats, need ${o.need}`}`));
+    const oc=td();
+    const pill=(c,t)=>oc.appendChild(el('span','pill '+c,t));
+    if(!m.g.vd[0])pill('count','Not started');
+    else if(o.final)pill(st,st==='maj'?'Majority':st==='drawn'?'Drawn':'Hung');
+    else if(o.early)pill('count','Too early');
+    else if(o.call==='maj')pill('maj','Majority likely');
+    else if(o.call==='short')pill('hung','Likely hung');
+    else pill('count','Too close');
+    tr.title=`Open ${short(m.n)}`;
+    tr.onclick=()=>{scope=String(m.prov.id);if(selected!==m.id)coal=new Set();selected=m.id;
+      try{history.replaceState(null,'','#m'+m.id);}catch(e){}
+      renderAll();document.getElementById('case').scrollIntoView({behavior:'smooth',block:'start'});};
+    tb.appendChild(tr);
+  });
+}
+
 function renderAll(){
   [...scopeNav.children].forEach(b=>b.setAttribute('aria-pressed',b.id==='scope-'+scope));
-  renderStage();renderStandings();renderGrid();renderCase();renderLists();
+  renderStage();renderMetros();renderStandings();renderGrid();renderCase();renderLists();
 }
 
 document.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>{metric=b.dataset.m;renderStandings();});
