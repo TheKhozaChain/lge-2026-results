@@ -741,7 +741,7 @@ renderAll();
       if(!r.ok)return;
       document.getElementById('autoupd').hidden=false;
       const v=await r.json();
-      if(v.rd&&v.rd!==cur)location.reload();
+      if(v.rd&&v.rd>cur)location.reload();  // only newer: a stale cached file must not cause reloads
     }catch(e){}
   }
   check();setInterval(check,120000);
